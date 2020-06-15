@@ -1,0 +1,158 @@
+#include <dht11.h>
+#include <LiquidCrystal.h>
+#include <Servo.h> 
+
+
+
+LiquidCrystal lcd(7, 6, 2, 3, 4, 5);
+//bird struct
+struct birds{
+  int id;
+  char b_name[10];
+  int inc_period;
+  int opt_hum;
+  int opt_hea; 
+};
+
+//servo functions
+void turnLeft(Servo servoq){
+  servoq.write(0);
+  for(int i=0;i<18;i++){
+   servoq.write(i);
+   delay(100);
+   }
+}
+void turnRight(Servo servoq){
+  servoq.write(18);
+  for(int i=18;i<0;i--){
+   servoq.write(i);
+   delay(100);
+   }
+}
+
+//variables
+#define no_of_birds 2
+birds bird[no_of_birds]= {{0,"chick",21,60,37},{1,"duck",28,60,37}};
+birds selected_bird;
+
+//checker
+int temp_bird=0;
+int for_bird_printing;
+int system_began=0;
+int first_enter=0;
+int isWatered =0;
+int isRotated =0;
+int lastRotateDirection=0;
+//buttons
+int button1 = 8;
+int button1State=0;
+int button2 = 9;
+int button2State=0;
+
+//sensor and its component
+int dht= 10;
+dht11 sensor;
+
+//fan and motors
+int fan=A0;
+int wpump=A1;
+Servo servo;
+int ser_pin=11;
+
+void setup() {
+  //pin Setups
+  pinMode(fan,OUTPUT);
+  pinMode(wpump,OUTPUT);
+  pinMode(button2,INPUT);
+  pinMode(button1,INPUT);
+  servo.attach(ser_pin);
+  Serial.begin(9600);
+
+  //lcd home print
+  lcd.begin(16, 2);
+  lcd.print("Egg");
+  lcd.setCursor(0,1);
+  lcd.print("Incubator");
+  delay(5000);
+  lcd.clear();
+}
+
+void loop() {
+  if(!system_began){
+    button1State = digitalRead(button1);
+    button2State = digitalRead(button2);
+    if(button1State==HIGH){
+      lcd.clear();
+      temp_bird++;
+      temp_bird%=no_of_birds;
+      for_bird_printing=1;
+    }
+    if(for_bird_printing){
+      lcd.print(bird[temp_bird].b_name);
+      for_bird_printing=0;
+    }
+    if(button2State==HIGH) {
+      system_began=1;
+      selected_bird=bird[temp_bird];
+      first_enter=1;
+    }
+  }
+  //system begins
+  else{
+    unsigned long inc_start=millis();
+    if(millis()<inc_start+selected_bird.inc_period*24*60*60*1000){
+      if(first_enter){
+        lcd.clear();
+        first_enter=0;
+      }
+      else{
+        //reading from sensor and writing to lcd
+        int chk = sensor.read(dht);
+        lcd.setCursor(0,0);
+        lcd.print("TEMPERATURE:");
+        lcd.print((int)((float)sensor.temperature));
+        lcd.setCursor(0,1);
+        lcd.print("HUMIDITY: ");
+        lcd.print((int)((float)sensor.humidity));
+        Serial.println(chk);
+        Serial.println(sensor.temperature,2);
+        Serial.println(sensor.humidity,2);
+      
+        //start fan if needed
+        //if(sensor.temperature>selected_bird.opt_hea)
+          digitalWrite(fan,HIGH);
+        //start waterpump if needed
+        unsigned long watertime;
+        if(sensor.humidity<selected_bird.opt_hum&&!isWatered&&0){
+          unsigned long starttime=millis();
+          while(millis()<starttime+10000){
+            digitalWrite(wpump,HIGH);
+          }
+          isWatered=1;
+          watertime = millis();
+        }
+        if(isWatered&&millis()<watertime+15*60*1000) isWatered=0;
+        
+        //rotate servo motor when needed
+        unsigned long rotatetime;
+        if(!isRotated){
+          if(lastRotateDirection) turnRight(servo);
+          else turnLeft(servo);
+          isRotated=1; 
+          rotatetime = millis(); 
+        }
+        if(millis() < rotatetime + 60*60*1000) isRotated=0;
+         
+      }
+    
+    }
+    else{
+      system_began=0;
+      lcd.clear();
+      lcd.print("Incubation Period");
+      lcd.setCursor(0,1);
+      lcd.print("Treat Well to Birds");
+      delay(10000);
+    }
+  }
+}
