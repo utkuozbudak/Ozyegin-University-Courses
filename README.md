@@ -1,2 +1,2 @@
 # Ozyegin University Course Projects
-This repo includes my work which are course projects and assignments.
+This repository includes the course projects & assignments during my Bachelor's studies (2016-2021)
